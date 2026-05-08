@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkers Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="color-modal" id="colorModal">
+        <div class="modal-content">
+            <h2>Choose Your Color</h2>
+            <p>Which color would you like to play?</p>
+            <div class="modal-buttons">
+                <button class="color-btn" id="redBtn" style="background-color: #d32f2f;">Red</button>
+                <button class="color-btn" id="blackBtn" style="background-color: #1a1a1a; color: white;">Black</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>Checkers Game</h1>
+        <div class="info-panel">
+            <div class="turn-info">Current Turn: <span id="currentTurn">Red (Human)</span></div>
+            <div class="captured-info">
+                <div>Red Captured: <span id="redCaptured">0</span></div>
+                <div>Black Captured: <span id="blackCaptured">0</span></div>
+            </div>
+            <button id="resetBtn" class="btn">New Game</button>
+        </div>
+        <div class="board" id="board"></div>
+        <div class="instructions">
+            <h3>How to Play:</h3>
+            <ul>
+                <li>Click a piece to select it (it will be highlighted)</li>
+                <li>Click a valid square to move</li>
+                <li>Diagonal moves only on dark squares</li>
+                <li>Jump over opponent pieces to capture them</li>
+                <li>Reach the opposite end to become a King (can move backward)</li>
+                <li>First player to capture all opponent pieces wins!</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
