@@ -10,6 +10,8 @@ let currentPlayer = RED;
 let redCaptured = 0;
 let blackCaptured = 0;
 let playerColor = RED;
+let aiDifficulty = 'medium';
+let isAIThinking = false;
 
 class Piece {
     constructor(color, row, col) {
@@ -248,6 +250,12 @@ function movePiece(piece, move) {
     } else {
         // Switch player
         currentPlayer = currentPlayer === RED ? BLACK : RED;
+        
+        // If AI's turn, make AI move
+        if ((currentPlayer === RED && playerColor === BLACK) ||
+            (currentPlayer === BLACK && playerColor === RED)) {
+            makeAIMove();
+        }
     }
     
     selectedPiece = null;
@@ -262,6 +270,219 @@ function updateUI() {
     document.getElementById('blackCaptured').textContent = blackCaptured;
 }
 
+function getAllPieces(color) {
+    const pieces = [];
+    for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row][col] && board[row][col].color === color) {
+                pieces.push(board[row][col]);
+            }
+        }
+    }
+    return pieces;
+}
+
+function evaluateBoard() {
+    // Simple board evaluation for AI
+    let score = 0;
+    
+    for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row][col]) {
+                const piece = board[row][col];
+                let value = piece.isKing ? 5 : 1;
+                
+                // Add position bonus (pieces closer to promotion are more valuable)
+                if (piece.color === BLACK) {
+                    value += row * 0.1;
+                } else {
+                    value += (BOARD_SIZE - 1 - row) * 0.1;
+                }
+                
+                score += piece.color === BLACK ? value : -value;
+            }
+        }
+    }
+    
+    return score;
+}
+
+function makeAIMove() {
+    if (isAIThinking) return;
+    isAIThinking = true;
+    
+    setTimeout(() => {
+        const aiPieces = getAllPieces(currentPlayer);
+        let bestMove = null;
+        let bestScore = -Infinity;
+        
+        if (aiDifficulty === 'easy') {
+            // Easy: Random valid move
+            let allMoves = [];
+            for (let piece of aiPieces) {
+                const moves = getValidMoves(piece);
+                for (let move of moves) {
+                    allMoves.push({ piece, move });
+                }
+            }
+            if (allMoves.length > 0) {
+                const randomIndex = Math.floor(Math.random() * allMoves.length);
+                bestMove = allMoves[randomIndex];
+            }
+        } else if (aiDifficulty === 'medium') {
+            // Medium: Prioritize captures, then moves toward promotion
+            for (let piece of aiPieces) {
+                const moves = getValidMoves(piece);
+                for (let move of moves) {
+                    let score = 0;
+                    
+                    if (move.isCapture) {
+                        score += 100;
+                    }
+                    
+                    if ((piece.color === BLACK && move.row > piece.row) ||
+                        (piece.color === RED && move.row < piece.row)) {
+                        score += 10;
+                    }
+                    
+                    score += Math.random();
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = { piece, move };
+                    }
+                }
+            }
+        } else if (aiDifficulty === 'hard') {
+            // Hard: Minimax with 3-move lookahead
+            bestMove = minimaxMove(3);
+        } else if (aiDifficulty === 'impossible') {
+            // Impossible: Minimax with 5-move lookahead
+            bestMove = minimaxMove(5);
+        }
+        
+        if (bestMove) {
+            movePiece(bestMove.piece, bestMove.move);
+        }
+        
+        isAIThinking = false;
+    }, 500);
+}
+
+function minimaxMove(depth) {
+    let bestMove = null;
+    let bestScore = -Infinity;
+    const aiColor = currentPlayer;
+    
+    const aiPieces = getAllPieces(aiColor);
+    
+    for (let piece of aiPieces) {
+        const moves = getValidMoves(piece);
+        for (let move of moves) {
+            // Simulate move
+            const oldPiece = board[move.row][move.col];
+            const capturedPiece = move.isCapture ? board[move.captureRow][move.captureCol] : null;
+            const wasKing = piece.isKing;
+            
+            board[piece.row][piece.col] = null;
+            board[move.row][move.col] = piece;
+            piece.row = move.row;
+            piece.col = move.col;
+            
+            if (move.isCapture) {
+                board[move.captureRow][move.captureCol] = null;
+            }
+            
+            if ((piece.color === RED && piece.row === BOARD_SIZE - 1) ||
+                (piece.color === BLACK && piece.row === 0)) {
+                piece.isKing = true;
+            }
+            
+            // Evaluate
+            const switchedPlayer = currentPlayer === RED ? BLACK : RED;
+            const score = -minimax(depth - 1, aiColor, switchedPlayer);
+            
+            // Undo move
+            board[piece.row][piece.col] = null;
+            piece.row -= move.isCapture ? move.row - piece.row : move.row - piece.row;
+            piece.col -= move.isCapture ? move.col - piece.col : move.col - piece.col;
+            board[piece.row][piece.col] = piece;
+            piece.isKing = wasKing;
+            
+            if (move.isCapture) {
+                board[move.captureRow][move.captureCol] = capturedPiece;
+            }
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = { piece, move };
+            }
+        }
+    }
+    
+    return bestMove;
+}
+
+function minimax(depth, aiColor, currentColor) {
+    if (depth === 0) {
+        return evaluateBoard();
+    }
+    
+    const pieces = getAllPieces(currentColor);
+    let bestScore = currentColor === aiColor ? -Infinity : Infinity;
+    
+    for (let piece of pieces) {
+        const moves = getValidMoves(piece);
+        if (moves.length === 0) continue;
+        
+        for (let move of moves) {
+            const wasKing = piece.isKing;
+            const oldPiece = board[move.row][move.col];
+            const capturedPiece = move.isCapture ? board[move.captureRow][move.captureCol] : null;
+            
+            board[piece.row][piece.col] = null;
+            board[move.row][move.col] = piece;
+            piece.row = move.row;
+            piece.col = move.col;
+            
+            if (move.isCapture) {
+                board[move.captureRow][move.captureCol] = null;
+            }
+            
+            if ((piece.color === RED && piece.row === BOARD_SIZE - 1) ||
+                (piece.color === BLACK && piece.row === 0)) {
+                piece.isKing = true;
+            }
+            
+            const nextColor = currentColor === RED ? BLACK : RED;
+            const score = minimax(depth - 1, aiColor, nextColor);
+            
+            board[piece.row][piece.col] = null;
+            piece.row -= move.row - piece.row;
+            piece.col -= move.col - piece.col;
+            board[piece.row][piece.col] = piece;
+            piece.isKing = wasKing;
+            
+            if (move.isCapture) {
+                board[move.captureRow][move.captureCol] = capturedPiece;
+            }
+            
+            if (currentColor === aiColor) {
+                bestScore = Math.max(bestScore, score);
+            } else {
+                bestScore = Math.min(bestScore, score);
+            }
+        }
+    }
+    
+    return bestScore === Infinity || bestScore === -Infinity ? evaluateBoard() : bestScore;
+}
+
+function resetGame() {
+    showColorModal();
+    initializeBoard();
+}
+
 function showColorModal() {
     document.getElementById('colorModal').classList.remove('hidden');
 }
@@ -270,24 +491,71 @@ function hideColorModal() {
     document.getElementById('colorModal').classList.add('hidden');
 }
 
-function resetGame() {
-    showColorModal();
-    initializeBoard();
+function showDifficultyModal() {
+    document.getElementById('difficultyModal').classList.remove('hidden');
+}
+
+function hideDifficultyModal() {
+    document.getElementById('difficultyModal').classList.add('hidden');
 }
 
 document.getElementById('redBtn').addEventListener('click', () => {
     playerColor = RED;
     hideColorModal();
-    const boardElement = document.getElementById('board');
-    boardElement.classList.add('flipped');
-    renderBoard();
+    showDifficultyModal();
 });
 
 document.getElementById('blackBtn').addEventListener('click', () => {
     playerColor = BLACK;
     hideColorModal();
+    showDifficultyModal();
+});
+
+document.getElementById('easyBtn').addEventListener('click', () => {
+    aiDifficulty = 'easy';
+    hideDifficultyModal();
     const boardElement = document.getElementById('board');
-    boardElement.classList.remove('flipped');
+    if (playerColor === RED) {
+        boardElement.classList.add('flipped');
+    } else {
+        boardElement.classList.remove('flipped');
+    }
+    renderBoard();
+});
+
+document.getElementById('mediumBtn').addEventListener('click', () => {
+    aiDifficulty = 'medium';
+    hideDifficultyModal();
+    const boardElement = document.getElementById('board');
+    if (playerColor === RED) {
+        boardElement.classList.add('flipped');
+    } else {
+        boardElement.classList.remove('flipped');
+    }
+    renderBoard();
+});
+
+document.getElementById('hardBtn').addEventListener('click', () => {
+    aiDifficulty = 'hard';
+    hideDifficultyModal();
+    const boardElement = document.getElementById('board');
+    if (playerColor === RED) {
+        boardElement.classList.add('flipped');
+    } else {
+        boardElement.classList.remove('flipped');
+    }
+    renderBoard();
+});
+
+document.getElementById('impossibleBtn').addEventListener('click', () => {
+    aiDifficulty = 'impossible';
+    hideDifficultyModal();
+    const boardElement = document.getElementById('board');
+    if (playerColor === RED) {
+        boardElement.classList.add('flipped');
+    } else {
+        boardElement.classList.remove('flipped');
+    }
     renderBoard();
 });
 
